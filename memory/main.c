@@ -39,6 +39,7 @@ main(void)
     MEM_dump_blocks(stdout);
 
     p2 = MEM_malloc(10);
+    fill_buffer(p2, 10);
     p2 = MEM_realloc(p2, 15);
     dump_buffer(p2, 15);
     MEM_dump_blocks(stdout);

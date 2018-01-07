@@ -1,6 +1,6 @@
 TARGET = dbg.o
 CC=gcc
-CFLAGS = -c -g -Wall -DDBG_NO_DEBUG -ansi -pedantic
+CFLAGS = -c -g -Wall -DDBG_NO_DEBUG
 OBJS = debug.o
 INCLUDES = -I..
 

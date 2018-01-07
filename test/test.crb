@@ -97,7 +97,7 @@ for (;;) {
 }
 print("\n");
 
-for (i = 0; i < 5; i = i + 1) {
+for (i = 0; i < 5; i++) {
     print("*** i.." + i + "***\n");
     if (i == 0) {
 	print("i == 0\n");
@@ -121,12 +121,12 @@ for (i = 0; i < 5; i = i + 1) {
     }
 }
 
-for (i = 0; i <= 5; i = i + 1) {
+for (i = 0; i <= 5; i++) {
     print(" i.." + i);
 }
 print("\n");
 
-for (i = 5; i >= 0; i = i - 1) {
+for (i = 5; i >= 0; i--) {
     print(" i.." + i);
 }
 print("\n");
@@ -202,7 +202,6 @@ if (true != true) {
 if (true != false) {
     print("true != false good\n");
 }
-
 ############################################################
 # Check string conversion
 ############################################################
@@ -342,3 +341,72 @@ function gtestfunc2() {
 gtestfunc();
 gtestfunc2();
 print("gtest.." + gtest + "\n");
+
+############################################################
+# array
+############################################################
+a = {1, 2, 3, 4, 5, 6, 7, 8};
+for (i = 0; i < a.size(); i = i + 1) {
+    print("(" + a[i] + ")");
+}
+print(a);
+print("\n");
+print("len.." + "abc".length() + "\n");
+
+for (i = 0; i < 10; i = i + 1) {
+    print("a.size().." + a.size() + "\n");
+    a.add(i);
+}
+
+for (i = 0; i < a.size(); i = i + 1) {
+    print("(" + a[i] + ")");
+}
+print("\n");
+a99 = new_array(9);
+for (i = 0; i < 9; i = i + 1) {
+    a99[i] = new_array(9);
+    for (j = 0; j < 9; j = j + 1) {
+	a99[i][j] = (i+1) * (j+1);
+    }
+}
+dump_a99(a99);
+
+a99 = new_array(9, 9);
+for (i = 0; i < 9; i = i + 1) {
+    for (j = 0; j < 9; j = j + 1) {
+	a99[i][j] = (i+1) * (j+1);
+    }
+}
+dump_a99(a99);
+
+print(a99);
+
+function dump_a99(arg99) {
+    for (i = 0; i < arg99.size(); i = i + 1) {
+	for (j = 0; j < arg99[i].size(); j = j + 1) {
+	    print("[" + arg99[i][j] + "] ");
+	}
+	print("\n");
+    }
+}
+
+a2 = {};
+
+# for (i = 0; i < 10000; i = i + 1) {
+#     a2.add(new_array(i % 5));
+#     a2.add(a2);
+# }
+
+print("\n");
+
+a3 = {1, 2, 3, 4, 5};
+a3.resize(20);
+# print("a3.." + a3 + "\n");
+a3.resize(10);
+# print("a3.." + a3 + "\n");
+
+a = {1, 2, 3, "a", {1, 2, {"3", 1.5}}};
+
+print(a);
+print("\n");
+print("a.." + a);

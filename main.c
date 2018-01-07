@@ -18,13 +18,9 @@ main(int argc, char **argv)
         fprintf(stderr, "%s not found.\n", argv[1]);
         exit(1);
     }
-    /*创建解释器*/
     interpreter = CRB_create_interpreter();
-    /*语法解析*/
     CRB_compile(interpreter, fp);
-    /*解释器执行*/
     CRB_interpret(interpreter);
-    /*清理*/
     CRB_dispose_interpreter(interpreter);
 
     MEM_dump_blocks(stdout);

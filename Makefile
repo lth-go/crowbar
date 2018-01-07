@@ -9,7 +9,7 @@ OBJS = \
   execute.o\
   eval.o\
   string.o\
-  string_pool.o\
+  heap.o\
   util.o\
   native.o\
   error.o\
@@ -47,9 +47,9 @@ error.o: error.c MEM.h crowbar.h CRB.h CRB_dev.h
 error_message.o: error_message.c crowbar.h MEM.h CRB.h CRB_dev.h
 eval.o: eval.c MEM.h DBG.h crowbar.h CRB.h CRB_dev.h
 execute.o: execute.c MEM.h DBG.h crowbar.h CRB.h CRB_dev.h
+heap.o: heap.c MEM.h DBG.h crowbar.h CRB.h CRB_dev.h
 interface.o: interface.c MEM.h DBG.h crowbar.h CRB.h CRB_dev.h
 main.o: main.c CRB.h MEM.h
 native.o: native.c MEM.h DBG.h crowbar.h CRB.h CRB_dev.h
 string.o: string.c MEM.h crowbar.h CRB.h CRB_dev.h
-string_pool.o: string_pool.c MEM.h DBG.h crowbar.h CRB.h CRB_dev.h
 util.o: util.c MEM.h DBG.h crowbar.h CRB.h CRB_dev.h

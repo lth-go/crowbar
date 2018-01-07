@@ -8,8 +8,13 @@
 #define smaller(a, b) ((a) < (b) ? (a) : (b))
 #define larger(a, b) ((a) > (b) ? (a) : (b))
 
+#define IDENTIFIER_TABLE_ALLOC_SIZE     (256)
+#define STRING_LITERAL_TABLE_ALLOC_SIZE (256)
 #define MESSAGE_ARGUMENT_MAX    (256)
 #define LINE_BUF_SIZE           (1024)
+#define STACK_ALLOC_SIZE        (256)
+#define ARRAY_ALLOC_SIZE        (256)
+#define HEAP_THRESHOLD_SIZE     (1024 * 256)
 
 typedef enum {
     PARSE_ERR = 1,
@@ -36,6 +41,14 @@ typedef enum {
     GLOBAL_VARIABLE_NOT_FOUND_ERR,
     GLOBAL_STATEMENT_IN_TOPLEVEL_ERR,
     BAD_OPERATOR_FOR_STRING_ERR,
+    NOT_LVALUE_ERR,
+    INDEX_OPERAND_NOT_ARRAY_ERR,
+    INDEX_OPERAND_NOT_INT_ERR,
+    ARRAY_INDEX_OUT_OF_BOUNDS_ERR,
+    NO_SUCH_METHOD_ERR,
+    NEW_ARRAY_ARGUMENT_TYPE_ERR,
+    INC_DEC_OPERAND_TYPE_ERR,
+    ARRAY_RESIZE_ARGUMENT_ERR,
     RUNTIME_ERROR_COUNT_PLUS_1
 } RuntimeError;
 
@@ -76,7 +89,12 @@ typedef enum {
     LOGICAL_OR_EXPRESSION,
     MINUS_EXPRESSION,
     FUNCTION_CALL_EXPRESSION,
+    METHOD_CALL_EXPRESSION,
     NULL_EXPRESSION,
+    ARRAY_EXPRESSION,
+    INDEX_EXPRESSION,
+    INCREMENT_EXPRESSION,
+    DECREMENT_EXPRESSION,
     EXPRESSION_TYPE_COUNT_PLUS_1
 } ExpressionType;
 
@@ -99,7 +117,7 @@ typedef struct ArgumentList_tag {
 } ArgumentList;
 
 typedef struct {
-    char        *variable;
+    Expression  *left;
     Expression  *operand;
 } AssignExpression;
 
@@ -112,6 +130,26 @@ typedef struct {
     char                *identifier;
     ArgumentList        *argument;
 } FunctionCallExpression;
+
+typedef struct ExpressionList_tag {
+    Expression          *expression;
+    struct ExpressionList_tag   *next;
+} ExpressionList;
+
+typedef struct {
+    Expression  *array;
+    Expression  *index;
+} IndexExpression;
+
+typedef struct {
+    Expression          *expression;
+    char                *identifier;
+    ArgumentList        *argument;
+} MethodCallExpression;
+
+typedef struct {
+    Expression  *operand;
+} IncrementOrDecrement;
 
 struct Expression_tag {
     ExpressionType type;
@@ -126,6 +164,10 @@ struct Expression_tag {
         BinaryExpression        binary_expression;
         Expression              *minus_expression;
         FunctionCallExpression  function_call_expression;
+        MethodCallExpression    method_call_expression;
+        ExpressionList          *array_literal;
+        IndexExpression         index_expression;
+        IncrementOrDecrement    inc_dec;
     } u;
 };
 
@@ -210,7 +252,8 @@ typedef struct ParameterList_tag {
 
 typedef enum {
     CROWBAR_FUNCTION_DEFINITION = 1,
-    NATIVE_FUNCTION_DEFINITION
+    NATIVE_FUNCTION_DEFINITION,
+    FUNCTION_DEFINITION_TYPE_COUNT_PLUS_1
 } FunctionDefinitionType;
 
 typedef struct FunctionDefinition_tag {
@@ -254,20 +297,29 @@ typedef struct GlobalVariableRef_tag {
     struct GlobalVariableRef_tag *next;
 } GlobalVariableRef;
 
-typedef struct {
-    Variable    *variable;
-    GlobalVariableRef   *global_variable;
-} LocalEnvironment;
+typedef struct RefInNativeFunc_tag {
+    CRB_Object  *object;
+    struct RefInNativeFunc_tag *next;
+} RefInNativeFunc;
 
-struct CRB_String_tag {
-    int         ref_count;
-    char        *string;
-    CRB_Boolean is_literal;
+struct CRB_LocalEnvironment_tag {
+    Variable            *variable;
+    GlobalVariableRef   *global_variable;
+    RefInNativeFunc     *ref_in_native_method;
+    struct CRB_LocalEnvironment_tag *next;
 };
 
 typedef struct {
-    CRB_String  *strings;
-} StringPool;
+    int         stack_alloc_size;
+    int         stack_pointer;
+    CRB_Value   *stack;
+} Stack;
+
+typedef struct {
+    int         current_heap_size;
+    int         current_threshold;
+    CRB_Object  *header;
+} Heap;
 
 struct CRB_Interpreter_tag {
     MEM_Storage         interpreter_storage;
@@ -276,8 +328,45 @@ struct CRB_Interpreter_tag {
     FunctionDefinition  *function_list;
     StatementList       *statement_list;
     int                 current_line_number;
+    Stack               stack;
+    Heap                heap;
+    CRB_LocalEnvironment    *top_environment;
 };
 
+struct CRB_Array_tag {
+    int         size;
+    int         alloc_size;
+    CRB_Value   *array;
+};
+
+struct CRB_String_tag {
+    CRB_Boolean is_literal;
+    char        *string;
+};
+
+typedef enum {
+    ARRAY_OBJECT = 1,
+    STRING_OBJECT,
+    OBJECT_TYPE_COUNT_PLUS_1
+} ObjectType;
+
+#define dkc_is_object_value(type) \
+  ((type) == CRB_STRING_VALUE || (type == CRB_ARRAY_VALUE))
+
+struct CRB_Object_tag {
+    ObjectType  type;
+    unsigned int        marked:1;
+    union {
+        CRB_Array       array;
+        CRB_String      string;
+    } u;
+    struct CRB_Object_tag *prev;
+    struct CRB_Object_tag *next;
+};
+
+typedef struct {
+    char        *string;
+} VString;
 
 /* create.c */
 void crb_function_define(char *identifier, ParameterList *parameter_list,
@@ -287,24 +376,35 @@ ParameterList *crb_chain_parameter(ParameterList *list,
                                    char *identifier);
 ArgumentList *crb_create_argument_list(Expression *expression);
 ArgumentList *crb_chain_argument_list(ArgumentList *list, Expression *expr);
+ExpressionList *crb_create_expression_list(Expression *expression);
+ExpressionList *crb_chain_expression_list(ExpressionList *list,
+                                        Expression *expr);
 StatementList *crb_create_statement_list(Statement *statement);
 StatementList *crb_chain_statement_list(StatementList *list,
                                         Statement *statement);
 Expression *crb_alloc_expression(ExpressionType type);
-Expression *crb_create_assign_expression(char *variable,
-                                             Expression *operand);
+Expression *crb_create_assign_expression(Expression *left,
+                                         Expression *operand);
 Expression *crb_create_binary_expression(ExpressionType operator,
                                          Expression *left,
                                          Expression *right);
 Expression *crb_create_minus_expression(Expression *operand);
+Expression *crb_create_index_expression(Expression *array, Expression *index);
+Expression *crb_create_incdec_expression(Expression *operand,
+                                         ExpressionType inc_or_dec);
 Expression *crb_create_identifier_expression(char *identifier);
 Expression *crb_create_function_call_expression(char *func_name,
                                                 ArgumentList *argument);
+Expression *crb_create_method_call_expression(Expression *expression,
+                                              char *method_name,
+                                              ArgumentList *argument);
 Expression *crb_create_boolean_expression(CRB_Boolean value);
 Expression *crb_create_null_expression(void);
 Statement *crb_create_global_statement(IdentifierList *identifier_list);
 IdentifierList *crb_create_global_identifier(char *identifier);
 IdentifierList *crb_chain_identifier(IdentifierList *list, char *identifier);
+Expression *crb_create_array_expression(ExpressionList *list);
+
 Statement *crb_create_if_statement(Expression *condition,
                                     Block *then_block, Elsif *elsif_list,
                                     Block *else_block);
@@ -329,40 +429,47 @@ char *crb_close_string_literal(void);
 /* execute.c */
 StatementResult
 crb_execute_statement_list(CRB_Interpreter *inter,
-                           LocalEnvironment *env, StatementList *list);
+                           CRB_LocalEnvironment *env, StatementList *list);
 
 /* eval.c */
 CRB_Value crb_eval_binary_expression(CRB_Interpreter *inter,
-                                 LocalEnvironment *env,
-                                 ExpressionType operator,
-                                 Expression *left, Expression *right);
+                                     CRB_LocalEnvironment *env,
+                                     ExpressionType operator,
+                                     Expression *left, Expression *right);
 CRB_Value crb_eval_minus_expression(CRB_Interpreter *inter,
-                                LocalEnvironment *env, Expression *operand);
+                                    CRB_LocalEnvironment *env,
+                                    Expression *operand);
 CRB_Value crb_eval_expression(CRB_Interpreter *inter,
-                          LocalEnvironment *env, Expression *expr);
+                              CRB_LocalEnvironment *env, Expression *expr);
 
-/* string_pool.c */
-CRB_String *crb_literal_to_crb_string(CRB_Interpreter *inter, char *str);
-void crb_refer_string(CRB_String *str);
-void crb_release_string(CRB_String *str);
-CRB_String *crb_search_crb_string(CRB_Interpreter *inter, char *str);
-CRB_String *crb_create_crowbar_string(CRB_Interpreter *inter, char *str);
+/* heap.c */
+CRB_Object *crb_literal_to_crb_string(CRB_Interpreter *inter, char *str);
+CRB_Object *crb_create_crowbar_string_i(CRB_Interpreter *inter, char *str);
+CRB_Object *crb_create_array_i(CRB_Interpreter *inter, int size);
+void crb_array_add(CRB_Interpreter *inter, CRB_Object *obj, CRB_Value v);
+void
+crb_array_resize(CRB_Interpreter *inter, CRB_Object *obj, int new_size);
+void crb_garbage_collect(CRB_Interpreter *inter);
+
 
 /* util.c */
 CRB_Interpreter *crb_get_current_interpreter(void);
 void crb_set_current_interpreter(CRB_Interpreter *inter);
 void *crb_malloc(size_t size);
 void *crb_execute_malloc(CRB_Interpreter *inter, size_t size);
-Variable *crb_search_local_variable(LocalEnvironment *env,
+Variable *crb_search_local_variable(CRB_LocalEnvironment *env,
                                     char *identifier);
 Variable *
 crb_search_global_variable(CRB_Interpreter *inter, char *identifier);
-void crb_add_local_variable(LocalEnvironment *env,
-                            char *identifier, CRB_Value *value);
+Variable *crb_add_local_variable(CRB_LocalEnvironment *env, char *identifier);
+Variable *crb_add_global_variable(CRB_Interpreter *inter, char *identifier);
 CRB_NativeFunctionProc *
 crb_search_native_function(CRB_Interpreter *inter, char *name);
 FunctionDefinition *crb_search_function(char *name);
 char *crb_get_operator_string(ExpressionType type);
+void crb_vstr_clear(VString *v);
+void crb_vstr_append_string(VString *v, char *str);
+void crb_vstr_append_character(VString *v, int ch);
 
 /* error.c */
 void crb_compile_error(CompileError id, ...);
@@ -370,15 +477,24 @@ void crb_runtime_error(int line_number, RuntimeError id, ...);
 
 /* native.c */
 CRB_Value crb_nv_print_proc(CRB_Interpreter *interpreter,
+                            CRB_LocalEnvironment *env,
                             int arg_count, CRB_Value *args);
 CRB_Value crb_nv_fopen_proc(CRB_Interpreter *interpreter,
+                            CRB_LocalEnvironment *env,
                             int arg_count, CRB_Value *args);
 CRB_Value crb_nv_fclose_proc(CRB_Interpreter *interpreter,
+                            CRB_LocalEnvironment *env,
                              int arg_count, CRB_Value *args);
 CRB_Value crb_nv_fgets_proc(CRB_Interpreter *interpreter,
+                            CRB_LocalEnvironment *env,
                             int arg_count, CRB_Value *args);
 CRB_Value crb_nv_fputs_proc(CRB_Interpreter *interpreter,
+                            CRB_LocalEnvironment *env,
                             int arg_count, CRB_Value *args);
+CRB_Value crb_nv_new_array_proc(CRB_Interpreter *interpreter,
+                                CRB_LocalEnvironment *env,
+                                int arg_count, CRB_Value *args);
 void crb_add_std_fp(CRB_Interpreter *inter);
+
 
 #endif /* PRIVATE_CROWBAR_H_INCLUDED */
