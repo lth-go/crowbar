@@ -410,3 +410,13 @@ a = {1, 2, 3, "a", {1, 2, {"3", 1.5}}};
 print(a);
 print("\n");
 print("a.." + a);
+
+in_fp = fopen("code.txt", "r");
+out_fp = fopen("code.result", "w");
+while ((str = fgets(in_fp)) != null) {
+    fputs(str, out_fp);
+    print(str);
+}
+fclose(in_fp);
+fputs("“ú–{Œê", out_fp);
+fclose(out_fp);
